@@ -32,12 +32,10 @@ DROP DOMAIN IF EXISTS d_kirjeldus CASCADE;
 
 -- Domeenid
 CREATE DOMAIN d_nimetus varchar(50) NOT NULL 
-CONSTRAINT d_nimetus_CHK_mitte_tuhi CHECK (VALUE!~'^[[:space:]]*$')
-CONSTRAINT d_nimetus_ei_tohi_olla_tyhi_string CHECK(VALUE!='');
+CONSTRAINT d_nimetus_CHK_mitte_tuhi CHECK (VALUE!~'^[[:space:]]*$');
 
 CREATE DOMAIN d_kirjeldus Text 
-CONSTRAINT d_kirjeldus_CHK_mitte_tuhi CHECK (VALUE!~'^[[:space:]]*$')
-CONSTRAINT d_kirjeldus_ei_tohi_olla_tyhi_string CHECK(VALUE!='');
+CONSTRAINT d_kirjeldus_CHK_mitte_tuhi CHECK (VALUE!~'^[[:space:]]*$');
 
 CREATE TABLE Amet
 (
@@ -249,18 +247,26 @@ INSERT INTO Toote_kategooria(toote_kategooria_kood, nimetus, kirjeldus) VALUES (
 INSERT INTO Toote_kategooria(toote_kategooria_kood, nimetus, kirjeldus) VALUES (200 ,'Mänguasjad tüdrukutele', NULL);
 
 CREATE OR REPLACE VIEW Toodete_nimekiri WITH (security_barrier)
-	AS SELECT Toode.toode_kood, Toode.kaal, Toode.korgus, Toode.laius,
-	Toode.max_soovitatav_vanus, Toode.min_soovitatav_vanus,
-	Toode.nimetus AS Toode_nimetus, Toode.pikkus, Toode.pildi_url,
-	Toode.reg_aeg, Toode.kirjeldus, Toode.hind,
-	Toode.toote_seisundi_liik_kood, Isik.eesnimi, Toote_seisundi_liik.nimetus
-	AS Toote_seisundi_liik_nimetus, Riik.nimetus
-	AS Riik_nimetus
-	FROM (Isik INNER JOIN Tootaja ON Isik.isik_id = Tootaja.isik_id)
-	INNER JOIN (Riik INNER JOIN (Toote_seisundi_liik
-	INNER JOIN Toode ON Toote_seisundi_liik.toote_seisundi_liik_kood = Toode.toote_seisundi_liik_kood)
-	ON Riik.riik_kood = Toode.riik_kood)
-	ON Tootaja.isik_id = Toode.registreerija_id;
+	AS SELECT 
+	t.toode_kood, 
+	t.nimetus AS toote_nimetus, 
+	t.kirjeldus, 
+	t.kaal, 
+	t.korgus, 
+	t.laius,
+	t.pikkus, 
+	t.hind,
+	t.min_soovitatav_vanus,
+	t.max_soovitatav_vanus, 
+	r.nimetus AS tootja_riik,
+	t.pildi_url,
+	t.reg_aeg, 
+	tsl.nimetus AS toote_seisund, 
+	(i.perenimi::text || ', ' || i.eesnimi::text) AS registreerija_nimi
+	FROM Toode t
+	INNER JOIN Tootaja too ON too.isik_id = t.registreerija_id
+	INNER JOIN Isik i ON i.isik_id = too.isik_id
+	INNER JOIN Riik r ON r.riik_kood = t.riik_kood
+	INNER JOIN Toote_seisundi_liik tsl ON tsl.toote_seisundi_liik_kood = t.toote_seisundi_liik_kood;
 
-COMMENT ON VIEW Toodete_nimekiri IS 'Subjekt tahab mingil põhjusel vaadata toodete detailseid andmeid '
-'(sealhulgas juba lõpetatud toodete andmeid). Näiteks soovib subjekt näha, milliseid tooteid on organisatsioon kunagi pakkunud või milliseid see praegu pakub.'
+COMMENT ON VIEW Toodete_nimekiri IS 'Subjekt tahab mingil põhjusel vaadata toodete detailseid andmeid (sealhulgas juba lõpetatud toodete andmeid). Näiteks soovib subjekt näha, milliseid tooteid on organisatsioon kunagi pakkunud või milliseid see praegu pakub.';
