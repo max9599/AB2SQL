@@ -45,7 +45,7 @@ CREATE TABLE Amet
 	CONSTRAINT Amet_PK_amet_kood PRIMARY KEY (amet_kood),
 	CONSTRAINT Amet_UQ_nimetus UNIQUE (nimetus)
 )
-;
+;dvxvxv
 
 CREATE TABLE Riik
 (
