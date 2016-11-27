@@ -32,10 +32,12 @@ DROP DOMAIN IF EXISTS d_kirjeldus CASCADE;
 
 -- Domeenid
 CREATE DOMAIN d_nimetus varchar(50) NOT NULL 
-CONSTRAINT d_nimetus_CHK_mitte_tuhi CHECK (VALUE!~'^[[:space:]]*$');
+CONSTRAINT d_nimetus_CHK_mitte_tuhi CHECK (VALUE!~'^[[:space:]]*$')
+CONSTRAINT d_nimetus_ei_tohi_olla_tyhi_string CHECK(VALUE!=''); ;
 
 CREATE DOMAIN d_kirjeldus Text 
-CONSTRAINT d_kirjeldus_CHK_mitte_tuhi CHECK (VALUE!~'^[[:space:]]*$');
+CONSTRAINT d_kirjeldus_CHK_mitte_tuhi CHECK (VALUE!~'^[[:space:]]*$')
+CONSTRAINT d_kirjeldus_ei_tohi_olla_tyhi_string CHECK(VALUE!='');
 
 CREATE TABLE Amet
 (
@@ -44,8 +46,8 @@ CREATE TABLE Amet
 	kirjeldus d_kirjeldus,
 	CONSTRAINT Amet_PK_amet_kood PRIMARY KEY (amet_kood),
 	CONSTRAINT Amet_UQ_nimetus UNIQUE (nimetus)
-)
-;dvxvxv
+);
+
 
 CREATE TABLE Riik
 (
