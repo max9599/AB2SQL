@@ -33,7 +33,7 @@ DROP DOMAIN IF EXISTS d_kirjeldus CASCADE;
 -- Domeenid
 CREATE DOMAIN d_nimetus varchar(50) NOT NULL 
 CONSTRAINT d_nimetus_CHK_mitte_tuhi CHECK (VALUE!~'^[[:space:]]*$')
-CONSTRAINT d_nimetus_ei_tohi_olla_tyhi_string CHECK(VALUE!=''); ;
+CONSTRAINT d_nimetus_ei_tohi_olla_tyhi_string CHECK(VALUE!='');
 
 CREATE DOMAIN d_kirjeldus Text 
 CONSTRAINT d_kirjeldus_CHK_mitte_tuhi CHECK (VALUE!~'^[[:space:]]*$')
@@ -247,3 +247,20 @@ INSERT INTO Tootaja_seisundi_liik(tootaja_seisundi_liik_kood, nimetus, kirjeldus
 
 INSERT INTO Toote_kategooria(toote_kategooria_kood, nimetus, kirjeldus) VALUES (100 ,'Mänguasjad poistele', NULL);
 INSERT INTO Toote_kategooria(toote_kategooria_kood, nimetus, kirjeldus) VALUES (200 ,'Mänguasjad tüdrukutele', NULL);
+
+CREATE OR REPLACE VIEW Toodete_nimekiri WITH (security_barrier)
+	AS SELECT Toode.toode_kood, Toode.kaal, Toode.korgus, Toode.laius,
+	Toode.max_soovitatav_vanus, Toode.min_soovitatav_vanus,
+	Toode.nimetus AS Toode_nimetus, Toode.pikkus, Toode.pildi_url,
+	Toode.reg_aeg, Toode.kirjeldus, Toode.hind,
+	Toode.toote_seisundi_liik_kood, Isik.eesnimi, Toote_seisundi_liik.nimetus
+	AS Toote_seisundi_liik_nimetus, Riik.nimetus
+	AS Riik_nimetus
+	FROM (Isik INNER JOIN Tootaja ON Isik.isik_id = Tootaja.isik_id)
+	INNER JOIN (Riik INNER JOIN (Toote_seisundi_liik
+	INNER JOIN Toode ON Toote_seisundi_liik.toote_seisundi_liik_kood = Toode.toote_seisundi_liik_kood)
+	ON Riik.riik_kood = Toode.riik_kood)
+	ON Tootaja.isik_id = Toode.registreerija_id;
+
+COMMENT ON VIEW Toodete_nimekiri IS 'Subjekt tahab mingil põhjusel vaadata toodete detailseid andmeid '
+'(sealhulgas juba lõpetatud toodete andmeid). Näiteks soovib subjekt näha, milliseid tooteid on organisatsioon kunagi pakkunud või milliseid see praegu pakub.'
