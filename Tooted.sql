@@ -128,7 +128,7 @@ CREATE TABLE Isik
     CONSTRAINT Isik_CHK_Perenimi CHECK (perenimi!~'^[[:space:]]*$'),
     CONSTRAINT Isik_CHK_Synni_kp CHECK (synni_kp >= '31-12-1900' AND synni_kp <= '31-12-2100'),
     CONSTRAINT Isik_CHK_Elukoht CHECK (elukoht!~'^[[:space:]]*$'),
-    CONSTRAINT Isik_CHK_E_meil CHECK (e_meil !~ '^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$'),
+    CONSTRAINT Isik_CHK_E_meil CHECK (e_meil~'^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$'),
     CONSTRAINT Isik_CHK_Parool CHECK (parool!~'^[[:space:]]*$'),
     CONSTRAINT Isik_CHK_Reg_aeg CHECK (reg_aeg >= '01-01-2010 00:00' AND reg_aeg <= '31-12-2100 23:59'),
     CONSTRAINT Isik_CHK_Reg_Aeg_SuuremVordne_Synni_Kp CHECK (reg_aeg >= synni_kp),
@@ -262,7 +262,8 @@ CREATE OR REPLACE VIEW Toodete_nimekiri WITH (security_barrier)
 	t.pildi_url,
 	t.reg_aeg, 
 	tsl.nimetus AS toote_seisund, 
-	(i.perenimi::text || ', ' || i.eesnimi::text) AS registreerija_nimi
+	(i.perenimi::text || ', ' || i.eesnimi::text) AS registreerija_nimi,
+	i.e_meil AS registreerija_e_meil
 	FROM Toode t
 	INNER JOIN Tootaja too ON too.isik_id = t.registreerija_id
 	INNER JOIN Isik i ON i.isik_id = too.isik_id
