@@ -271,3 +271,24 @@ CREATE OR REPLACE VIEW Toodete_nimekiri WITH (security_barrier)
 	INNER JOIN Toote_seisundi_liik tsl ON tsl.toote_seisundi_liik_kood = t.toote_seisundi_liik_kood;
 
 COMMENT ON VIEW Toodete_nimekiri IS 'Subjekt tahab mingil põhjusel vaadata toodete detailseid andmeid (sealhulgas juba lõpetatud toodete andmeid). Näiteks soovib subjekt näha, milliseid tooteid on organisatsioon kunagi pakkunud või milliseid see praegu pakub.';
+
+CREATE OR REPLACE VIEW Toodete_kategooriad WITH (security_barrier)
+AS SELECT
+		 TK.nimetus,
+		 TKO.toode_kood
+	 FROM Toote_kategooria AS TK
+	 INNER JOIN Toote_kategooria_omamine AS TKO ON TK.toote_kategooria_kood = TKO.toote_kategooria_kood;
+
+COMMENT ON VIEW Toodete_kategooriad IS 'Süsteem kuvab nimekirja kategooriatest, kuhu toode juba kuulub. Subjekt tahab vaadata olemasolevaid toodete kategoorijaid, et kontrollida nende korrektsust või viia läbi muutusi vastavalt organisatsiooni nõuetele.'
+
+CREATE OR REPLACE VIEW Toode_lopetamine WITH (security_barrier)
+AS SELECT
+		 Toode.toode_kood,
+		 Toode.nimetus AS toote_nimetus,
+		 Toode.kirjeldus, Toode.reg_aeg,
+		 Toode.hind,
+		 Toote_seisundi_liik.nimetus AS seisundi_liik,
+		 Toode.toote_seisundi_liik_kood
+	FROM Toode
+	INNER JOIN Toote_seisundi_liik ON Toote_seisundi_liik.toote_seisundi_liik_kood = Toode.toote_seisundi_liik_kood
+	WHERE (((Toode.toote_seisundi_liik_kood)=1 Or (Toode.toote_seisundi_liik_kood)=3));
