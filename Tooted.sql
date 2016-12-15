@@ -1,11 +1,20 @@
---Drops everything in public
+-- Kustutab schema ja kõik selle sees ja loob selle uuesti
 ----------------------------
---DROP SCHEMA public CASCADE;
---CREATE SCHEMA public;
+-- DROP SCHEMA public CASCADE;
+-- CREATE SCHEMA public;
 
+-- Settingud
+CREATE EXTENSION pgcrypto;
 SET datestyle = dmy;
 
--- Views DROP laused
+-- DROP Laused ---------------------------------------- start
+-- Funktsioonid asendavad ennast, kui juba olid loodud.
+
+-- Triggerite DROP laused
+DROP TRIGGER IF EXISTS t_kontrolli_seisundi_muutust ON Toode CASCADE;
+DROP TRIGGER IF EXISTS t_hash_password ON Isik CAASCADE
+
+-- Vaadete DROP laused
 DROP VIEW IF EXISTS Toodete_nimekiri CASCADE;
 DROP VIEW IF EXISTS Toodete_kategooriad CASCADE;
 DROP VIEW IF EXISTS Toodete_lopetamine CASCADE;
@@ -39,14 +48,17 @@ DROP INDEX IF EXISTS Toote_kategooria_omamine_IDX_toote_kategooria_kood CASCADE;
 -- Domeenid DROP laused
 DROP DOMAIN IF EXISTS d_nimetus CASCADE;
 DROP DOMAIN IF EXISTS d_kirjeldus CASCADE;
+-- DROP Laused ---------------------------------------- end
 
--- Domeenid
+-- Domeenid ---------------------------------------- start
 CREATE DOMAIN d_nimetus VARCHAR(50) NOT NULL
 CONSTRAINT d_nimetus_CHK_mitte_tuhi CHECK (VALUE !~ '^[[:space:]]*$');
 
 CREATE DOMAIN d_kirjeldus TEXT
 CONSTRAINT d_kirjeldus_CHK_mitte_tuhi CHECK (VALUE !~ '^[[:space:]]*$');
+-- Domeenid ---------------------------------------- end
 
+-- Baastabelid ---------------------------------------- start
 CREATE TABLE Amet
 (
     amet_kood SMALLINT NOT NULL,
@@ -242,9 +254,10 @@ CREATE TABLE Toote_kategooria_omamine
 
 CREATE INDEX Toote_kategooria_omamine_IDX_toote_kategooria_kood
     ON Toote_kategooria_omamine (toote_kategooria_kood ASC);
+-- Baastabelid ---------------------------------------- end
 
 --------------
---------------  TEST ANDMED
+--------------  Klassifikaatorite väärtused
 --------------
 
 INSERT INTO Amet (amet_kood, nimetus, kirjeldus) VALUES (1, 'Toote haldur', NULL);
@@ -274,7 +287,7 @@ INSERT INTO Toote_kategooria (toote_kategooria_kood, nimetus, kirjeldus) VALUES 
 --------------
 --------------  VAATED
 --------------
-
+--------------
 CREATE OR REPLACE VIEW Toodete_nimekiri WITH (security_barrier)
 AS
     SELECT
@@ -310,7 +323,7 @@ AS
     FROM Toote_kategooria AS TK
         INNER JOIN Toote_kategooria_omamine AS TKO ON TK.toote_kategooria_kood = TKO.toote_kategooria_kood;
 
-COMMENT ON VIEW Toodete_kategooriad IS 'Süsteem kuvab toote kategooriaid toode detailvaades.';
+COMMENT ON VIEW Toodete_kategooriad IS 'Süsteem kuvab toote kategooriaid toode detailvaades. Toote koodi järgi päring annab kõik toote kategooriaid.';
 
 CREATE OR REPLACE VIEW Toodete_lopetamine WITH (security_barrier)
 AS
@@ -327,24 +340,33 @@ AS
 
 COMMENT ON VIEW Toodete_lopetamine IS 'Subjekt soovib anda kõigile huvitatud osapooltele teada, et konkreetse tootega enam tehinguid ei tehta (kuid kõik käimasolevad tehingud tuleb vastavalt kehtivale korrale lõpetada). Samas soovib ta toote andmete süsteemis säilimist, et ei läheks kaotsi info toote ja sellega seotud tehingute kohta.';
 
+CREATE OR REPLACE VIEW Toodete_koondaruanne WITH (security_barrier)
+AS
+    SELECT TSL.nimetus AS seisund, COUNT(*) AS kokku
+      FROM Toode T
+      INNER JOIN Toote_seisundi_liik TSL ON TSL.toote_seisundi_liik_kood = T.toote_seisundi_liik_kood
+      GROUP BY TSL.nimetus;
+COMMENT ON VIEW Toodete_koondaruanne IS 'Subjekt soovib saada koondaruannet toodetest - mitu toodet on igas seisundis.';
+
 --------------
 --------------  FUNKTSIOONID
 --------------
-
-CREATE OR REPLACE FUNCTION f_lopeta_toode(p_toote_kood Toode.toode_kood%TYPE)
-    RETURNS VOID AS $$
-UPDATE Toode
-SET toote_seisundi_liik_kood = 4
-WHERE toode_kood = p_toote_kood;
-$$ LANGUAGE SQL SECURITY DEFINER
-SET search_path = public, pg_temp;
+--------------
+CREATE OR REPLACE FUNCTION f_lopeta_toode(p_toote_kood Toode.toode_kood%TYPE) RETURNS VOID AS $$
+BEGIN
+    UPDATE Toode
+      SET toote_seisundi_liik_kood = 4
+      WHERE toode_kood = p_toote_kood;
+END;
+$$ LANGUAGE 'plpgsql'
+SET search_path = public;
 
 COMMENT ON FUNCTION f_lopeta_toode (p_toote_kood
     Toode.toode_kood%TYPE) IS 'Selle funktsiooni abil lõpetatakse toote.
 Funktsioon realiseerib andmebaasioperatsioon OP5. Parameetri p_toote_kood oodatav väärtus
 on toote identifikaator.';
 
-CREATE FUNCTION f_kontrolli_seisundi_muutust () RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION f_kontrolli_seisundi_muutust () RETURNS trigger AS $$
 BEGIN
     IF ((NOT
     (                                                                                              -- SEISUNDIDIAGRAMM
@@ -356,12 +378,46 @@ BEGIN
     )) THEN
         RAISE EXCEPTION 'Tekkis viga seisundi muutmisel';
     END IF;
+    RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE 'plpgsql'
+SET search_path = public;
 
 COMMENT ON FUNCTION f_kontrolli_seisundi_muutust () IS 'Selle funktsiooni abil kontrollitakse toote seisundi muutust. Lubatakse ainult seisundidiagrammis defineerituid üleminekud.';
 
+CREATE OR REPLACE FUNCTION f_hash_password() RETURNS trigger AS $$
+BEGIN
+    IF ((SELECT COUNT(isik_id) FROM Isik WHERE isik_id=NEW.isik_id)=0 OR OLD.parool <> NEW.parool) THEN
+      NEW.parool :=  digest(NEW.parool, 'sha256');
+      RETURN NEW;
+    END IF;
+END
+$$ LANGUAGE 'plpgsql'
+SET search_path = public;
+
+COMMENT ON FUNCTION f_hash_password () IS 'Selle funktsiooni abil rakendatakse registreeritud isiku paroolile MD5 Hash funktsioon..';
+
+--------------
+--------------  TRIGGERID
+--------------
+--------------
 CREATE TRIGGER t_kontrolli_seisundi_muutust BEFORE UPDATE ON Toode
 FOR EACH ROW EXECUTE PROCEDURE f_kontrolli_seisundi_muutust();
-
 COMMENT ON TRIGGER t_kontrolli_seisundi_muutust ON Toode IS 'See trigger käivitatakse igakord, kui toote kirjet tahetakse muuta UPDATE statement abil. Käivitatakse funktsioon, mis kontrollib seisundi muutust.';
+
+CREATE TRIGGER t_hash_password BEFORE INSERT OR UPDATE ON Isik
+FOR EACH ROW EXECUTE PROCEDURE f_hash_password();
+COMMENT ON TRIGGER t_hash_password ON Isik IS 'See trigger käivitatakse igakord, kui lisatakse uus kirje tabelisse Isik. Igale INSERT kirjele rakendatakse funktsioon, mis rakendab räsifunktsiooni väljale parool.';
+
+INSERT INTO isik (isik_id, e_meil, isikukood, riik_kood, isik_seisundi_liik_kood, eesnimi, elukoht, parool, reg_aeg, synni_kp, perenimi)
+VALUES (1, 'max9599@gmail.com', '39509182223', 'EST', 1, 'Maxim', 'Tallinn', '1234', '2016-12-02 21:03:00', '1995-09-18', 'Gromov');
+INSERT INTO tootaja (isik_id, amet_kood, tootaja_seisundi_liik_kood) VALUES (1, 1, 1);
+INSERT INTO toode (toode_kood, nimetus, registreerija_id, toote_seisundi_liik_kood, riik_kood, kirjeldus, kaal, korgus, pikkus, laius, reg_aeg, hind, min_soovitatav_vanus, max_soovitatav_vanus, pildi_url)
+VALUES ('XPK231', 'Karu', 1, 1, 'EST', 'Väga pehme karu', 0.120, 1.500, 0.800, 0.340, '2016-12-02 21:03:00', 79.9900, 2, 100, 'http://www.clipartqueen.com/image-files/teddy-bear-head.png');
+INSERT INTO toode (toode_kood, nimetus, registreerija_id, toote_seisundi_liik_kood, riik_kood, kirjeldus, kaal, korgus, pikkus, laius, reg_aeg, hind, min_soovitatav_vanus, max_soovitatav_vanus, pildi_url)
+VALUES ('XPK232', 'Jänes', 1, 2, 'BEL', 'Väga pehme jänes', 0.055, 0.850, 0.400, 0.200, '2016-12-03 11:53:00', 48.5500, 2, 100, 'https://i.cbc.ca/1.3463088.1456362180!/fileImage/httpImage/image.png_gen/derivatives/original_620/pr-soft-toy.png');
+INSERT INTO toode (toode_kood, nimetus, registreerija_id, toote_seisundi_liik_kood, riik_kood, kirjeldus, kaal, korgus, pikkus, laius, reg_aeg, hind, min_soovitatav_vanus, max_soovitatav_vanus, pildi_url)
+VALUES ('XPK233', 'Konn', 1, 3, 'BEL', 'Konn', 0.022, 0.111, 0.342, 0.230, '2016-12-03 11:55:00', 20.8900, 3, 10, 'https://netikink.eu/731-large_default/pehme-manguasi-konn-paddy.jpg');
+INSERT INTO toode (toode_kood, nimetus, registreerija_id, toote_seisundi_liik_kood, riik_kood, kirjeldus, kaal, korgus, pikkus, laius, reg_aeg, hind, min_soovitatav_vanus, max_soovitatav_vanus, pildi_url)
+VALUES ('XPK234', 'Lehm', 1, 4, 'EST', 'Lehm', 0.300, 0.122, 0.342, 0.222, '2016-12-03 11:56:00', 30.9900, 3, 10, 'http://beebicenter.ee/3769-large_default/teddykompaniet-pehme-xl-manguasi-lehm-120cm.jpg');
+
