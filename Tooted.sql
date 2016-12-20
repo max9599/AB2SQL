@@ -12,7 +12,7 @@ SET datestyle = dmy;
 
 -- Triggerite DROP laused
 DROP TRIGGER IF EXISTS t_kontrolli_seisundi_muutust ON Toode CASCADE;
-DROP TRIGGER IF EXISTS t_hash_password ON Isik CAASCADE
+DROP TRIGGER IF EXISTS t_hash_password ON Isik CASCADE;
 
 -- Vaadete DROP laused
 DROP VIEW IF EXISTS Toodete_nimekiri CASCADE;
@@ -260,29 +260,26 @@ CREATE INDEX Toote_kategooria_omamine_IDX_toote_kategooria_kood
 --------------  Klassifikaatorite väärtused
 --------------
 
-INSERT INTO Amet (amet_kood, nimetus, kirjeldus) VALUES (1, 'Toote haldur', NULL);
-INSERT INTO Amet (amet_kood, nimetus, kirjeldus) VALUES (2, 'Juhataja', NULL);
+INSERT INTO Amet (amet_kood, nimetus, kirjeldus) VALUES (1, 'Toote haldur', 'Haldab ja vastutab toodete info eest.');
+INSERT INTO Amet (amet_kood, nimetus, kirjeldus) VALUES (2, 'Juhataja', 'Jälgib ja lõpetab tooteid.');
 
-INSERT INTO Riik (riik_kood, nimetus, kirjeldus) VALUES ('EST', 'Eesti', NULL);
-INSERT INTO Riik (riik_kood, nimetus, kirjeldus) VALUES ('BEL', 'Belgia', NULL);
-INSERT INTO Riik (riik_kood, nimetus, kirjeldus) VALUES ('DEU', 'Saksamaa', NULL);
+INSERT INTO Riik (riik_kood, nimetus, kirjeldus) VALUES ('EST', 'Eesti', 'ESTONIA');
+INSERT INTO Riik (riik_kood, nimetus, kirjeldus) VALUES ('BEL', 'Belgia', 'BELGIUM');
+INSERT INTO Riik (riik_kood, nimetus, kirjeldus) VALUES ('DEU', 'Saksamaa', 'GERMANY');
 
-INSERT INTO Isiku_seisundi_liik (isik_seisundi_liik_kood, nimetus, kirjeldus) VALUES (1, 'Aktiivne', NULL);
-INSERT INTO Isiku_seisundi_liik (isik_seisundi_liik_kood, nimetus, kirjeldus) VALUES (2, 'Mitteaktiivne', NULL);
+INSERT INTO Isiku_seisundi_liik (isik_seisundi_liik_kood, nimetus, kirjeldus) VALUES (1, 'Aktiivne', 'Isik on aktiivses seisundis.');
+INSERT INTO Isiku_seisundi_liik (isik_seisundi_liik_kood, nimetus, kirjeldus) VALUES (2, 'Mitteaktiivne', 'Isik on mitteaktiivses seisundis.');
 
-INSERT INTO Kliendi_seisundi_liik (klient_seisundi_liik_kood, nimetus, kirjeldus) VALUES (1, 'Aktiivne', NULL);
-INSERT INTO Kliendi_seisundi_liik (klient_seisundi_liik_kood, nimetus, kirjeldus) VALUES (2, 'Mitteaktiivne', NULL);
+INSERT INTO Kliendi_seisundi_liik (klient_seisundi_liik_kood, nimetus, kirjeldus) VALUES (1, 'Aktiivne', 'Klient on aktiivses seisundis.');
+INSERT INTO Kliendi_seisundi_liik (klient_seisundi_liik_kood, nimetus, kirjeldus) VALUES (2, 'Mitteaktiivne', 'Klient on mitteaktiivses seisundis.');
 
-INSERT INTO Toote_seisundi_liik (toote_seisundi_liik_kood, nimetus, kirjeldus) VALUES (1, 'Ootel', NULL);
-INSERT INTO Toote_seisundi_liik (toote_seisundi_liik_kood, nimetus, kirjeldus) VALUES (2, 'Aktiivne', NULL);
-INSERT INTO Toote_seisundi_liik (toote_seisundi_liik_kood, nimetus, kirjeldus) VALUES (3, 'Mitteaktiivne', NULL);
-INSERT INTO Toote_seisundi_liik (toote_seisundi_liik_kood, nimetus, kirjeldus) VALUES (4, 'Lõpetatud', NULL);
+INSERT INTO Toote_seisundi_liik (toote_seisundi_liik_kood, nimetus, kirjeldus) VALUES (1, 'Ootel', 'Toode on ootel.');
+INSERT INTO Toote_seisundi_liik (toote_seisundi_liik_kood, nimetus, kirjeldus) VALUES (2, 'Aktiivne', 'Toode on aktiivne.');
+INSERT INTO Toote_seisundi_liik (toote_seisundi_liik_kood, nimetus, kirjeldus) VALUES (3, 'Mitteaktiivne', 'Toode on mitteaktiivne.');
+INSERT INTO Toote_seisundi_liik (toote_seisundi_liik_kood, nimetus, kirjeldus) VALUES (4, 'Lõpetatud', 'Toode on lõpetatud.');
 
-INSERT INTO Tootaja_seisundi_liik (tootaja_seisundi_liik_kood, nimetus, kirjeldus) VALUES (1, 'Aktiivne', NULL);
-INSERT INTO Tootaja_seisundi_liik (tootaja_seisundi_liik_kood, nimetus, kirjeldus) VALUES (2, 'Mitteaktiivne', NULL);
-
-INSERT INTO Toote_kategooria (toote_kategooria_kood, nimetus, kirjeldus) VALUES (100, 'Mänguasjad poistele', NULL);
-INSERT INTO Toote_kategooria (toote_kategooria_kood, nimetus, kirjeldus) VALUES (200, 'Mänguasjad tüdrukutele', NULL);
+INSERT INTO Tootaja_seisundi_liik (tootaja_seisundi_liik_kood, nimetus, kirjeldus) VALUES (1, 'Aktiivne', 'Töötaja on aktiivne.');
+INSERT INTO Tootaja_seisundi_liik (tootaja_seisundi_liik_kood, nimetus, kirjeldus) VALUES (2, 'Mitteaktiivne', 'Töötaja on mitteaktiivne');
 
 --------------
 --------------  VAATED
@@ -387,10 +384,15 @@ COMMENT ON FUNCTION f_kontrolli_seisundi_muutust () IS 'Selle funktsiooni abil k
 
 CREATE OR REPLACE FUNCTION f_hash_password() RETURNS trigger AS $$
 BEGIN
-    IF ((SELECT COUNT(isik_id) FROM Isik WHERE isik_id=NEW.isik_id)=0 OR OLD.parool <> NEW.parool) THEN
-      NEW.parool :=  digest(NEW.parool, 'sha256');
-      RETURN NEW;
+    IF TG_OP = 'UPDATE' THEN -- Checking trigger operation here
+        -- Topelthashimise vältimine UPDATE klausli korral
+        IF OLD.parool <> NEW.parool THEN
+            NEW.parool :=  crypt(NEW.parool, gen_salt('bf', 8));
+        END IF;
+    ELSE
+        NEW.parool :=  crypt(NEW.parool, gen_salt('bf', 8));
     END IF;
+    RETURN NEW;
 END
 $$ LANGUAGE 'plpgsql'
 SET search_path = public;
@@ -401,17 +403,21 @@ COMMENT ON FUNCTION f_hash_password () IS 'Selle funktsiooni abil rakendatakse r
 --------------  TRIGGERID
 --------------
 --------------
-CREATE TRIGGER t_kontrolli_seisundi_muutust BEFORE UPDATE ON Toode
+CREATE TRIGGER t_kontrolli_seisundi_muutust BEFORE UPDATE OF toote_seisundi_liik_kood ON Toode
 FOR EACH ROW EXECUTE PROCEDURE f_kontrolli_seisundi_muutust();
 COMMENT ON TRIGGER t_kontrolli_seisundi_muutust ON Toode IS 'See trigger käivitatakse igakord, kui toote kirjet tahetakse muuta UPDATE statement abil. Käivitatakse funktsioon, mis kontrollib seisundi muutust.';
 
-CREATE TRIGGER t_hash_password BEFORE INSERT OR UPDATE ON Isik
+CREATE TRIGGER t_hash_password BEFORE INSERT OR UPDATE OF parool ON Isik
 FOR EACH ROW EXECUTE PROCEDURE f_hash_password();
 COMMENT ON TRIGGER t_hash_password ON Isik IS 'See trigger käivitatakse igakord, kui lisatakse uus kirje tabelisse Isik. Igale INSERT kirjele rakendatakse funktsioon, mis rakendab räsifunktsiooni väljale parool.';
 
+--------------
+--------------  TEST ANDMED
+--------------
 INSERT INTO isik (isik_id, e_meil, isikukood, riik_kood, isik_seisundi_liik_kood, eesnimi, elukoht, parool, reg_aeg, synni_kp, perenimi)
 VALUES (1, 'max9599@gmail.com', '39509182223', 'EST', 1, 'Maxim', 'Tallinn', '1234', '2016-12-02 21:03:00', '1995-09-18', 'Gromov');
 INSERT INTO tootaja (isik_id, amet_kood, tootaja_seisundi_liik_kood) VALUES (1, 1, 1);
+
 INSERT INTO toode (toode_kood, nimetus, registreerija_id, toote_seisundi_liik_kood, riik_kood, kirjeldus, kaal, korgus, pikkus, laius, reg_aeg, hind, min_soovitatav_vanus, max_soovitatav_vanus, pildi_url)
 VALUES ('XPK231', 'Karu', 1, 1, 'EST', 'Väga pehme karu', 0.120, 1.500, 0.800, 0.340, '2016-12-02 21:03:00', 79.9900, 2, 100, 'http://www.clipartqueen.com/image-files/teddy-bear-head.png');
 INSERT INTO toode (toode_kood, nimetus, registreerija_id, toote_seisundi_liik_kood, riik_kood, kirjeldus, kaal, korgus, pikkus, laius, reg_aeg, hind, min_soovitatav_vanus, max_soovitatav_vanus, pildi_url)
@@ -420,4 +426,16 @@ INSERT INTO toode (toode_kood, nimetus, registreerija_id, toote_seisundi_liik_ko
 VALUES ('XPK233', 'Konn', 1, 3, 'BEL', 'Konn', 0.022, 0.111, 0.342, 0.230, '2016-12-03 11:55:00', 20.8900, 3, 10, 'https://netikink.eu/731-large_default/pehme-manguasi-konn-paddy.jpg');
 INSERT INTO toode (toode_kood, nimetus, registreerija_id, toote_seisundi_liik_kood, riik_kood, kirjeldus, kaal, korgus, pikkus, laius, reg_aeg, hind, min_soovitatav_vanus, max_soovitatav_vanus, pildi_url)
 VALUES ('XPK234', 'Lehm', 1, 4, 'EST', 'Lehm', 0.300, 0.122, 0.342, 0.222, '2016-12-03 11:56:00', 30.9900, 3, 10, 'http://beebicenter.ee/3769-large_default/teddykompaniet-pehme-xl-manguasi-lehm-120cm.jpg');
+
+INSERT INTO Toote_kategooria (toote_kategooria_kood, nimetus, kirjeldus) VALUES (100, 'Mänguasjad poistele', 'Kategooria, mis sisaldab poistele mõeldud mänguasju.');
+INSERT INTO Toote_kategooria (toote_kategooria_kood, nimetus, kirjeldus) VALUES (200, 'Mänguasjad tüdrukutele', 'Kategooria, mis sisaldab tüdrukutele mõeldud mänguasju.');
+
+INSERT INTO Toote_kategooria_omamine (toode_kood, toote_kategooria_kood) VALUES ('XPK231', 100);
+INSERT INTO Toote_kategooria_omamine (toode_kood, toote_kategooria_kood) VALUES ('XPK231', 200);
+INSERT INTO Toote_kategooria_omamine (toode_kood, toote_kategooria_kood) VALUES ('XPK232', 100);
+INSERT INTO Toote_kategooria_omamine (toode_kood, toote_kategooria_kood) VALUES ('XPK232', 200);
+INSERT INTO Toote_kategooria_omamine (toode_kood, toote_kategooria_kood) VALUES ('XPK233', 100);
+INSERT INTO Toote_kategooria_omamine (toode_kood, toote_kategooria_kood) VALUES ('XPK233', 200);
+INSERT INTO Toote_kategooria_omamine (toode_kood, toote_kategooria_kood) VALUES ('XPK234', 100);
+INSERT INTO Toote_kategooria_omamine (toode_kood, toote_kategooria_kood) VALUES ('XPK234', 200);
 
