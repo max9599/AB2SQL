@@ -365,22 +365,12 @@ on toote identifikaator.';
 
 CREATE OR REPLACE FUNCTION f_kontrolli_seisundi_muutust () RETURNS trigger AS $$
 BEGIN
-    IF ((NOT
-    (                                                                                              -- SEISUNDIDIAGRAMM
-        (OLD.toote_seisundi_liik_kood =              NEW.toote_seisundi_liik_kood    )        OR   -- Seisund ei muutu
-        (OLD.toote_seisundi_liik_kood IN (2, 3)  AND NEW.toote_seisundi_liik_kood = 4)        OR   -- Lõpeta aktiivne või mitteaktiivne toode
-        (OLD.toote_seisundi_liik_kood IN (1, 2)  AND NEW.toote_seisundi_liik_kood = 3)        OR   -- Muuda ootel või aktiivne toote mitteaktiivseks
-        (OLD.toote_seisundi_liik_kood IN (1, 3)  AND NEW.toote_seisundi_liik_kood = 2)             -- Aktiveeri ootel või mitteaktiivse toote
-    )
-    )) THEN
-        RAISE EXCEPTION 'Tekkis viga seisundi muutmisel';
-    END IF;
-    RETURN NEW;
+    RAISE EXCEPTION 'Tekkis viga seisundi muutmisel';
 END;
 $$ LANGUAGE 'plpgsql'
 SET search_path = public;
 
-COMMENT ON FUNCTION f_kontrolli_seisundi_muutust () IS 'Selle funktsiooni abil kontrollitakse toote seisundi muutust. Lubatakse ainult seisundidiagrammis defineerituid üleminekud.';
+COMMENT ON FUNCTION f_kontrolli_seisundi_muutust () IS 'Kuna toote seisundi muutus toimus ebakorrektselt, väljastab see funktsion välja exceptioni.';
 
 CREATE OR REPLACE FUNCTION f_hash_password() RETURNS trigger AS $$
 BEGIN
@@ -397,15 +387,24 @@ END
 $$ LANGUAGE 'plpgsql'
 SET search_path = public;
 
-COMMENT ON FUNCTION f_hash_password () IS 'Selle funktsiooni abil rakendatakse registreeritud isiku paroolile MD5 Hash funktsioon..';
+COMMENT ON FUNCTION f_hash_password () IS 'Selle funktsiooni abil rakendatakse registreeritud isiku paroolile soolaga krüpteerimise funktsioon. On arvestatud nii UPDATE kui ka INSERT juhtudega, on välditud topelthashimist UPDATE korral.';
 
 --------------
 --------------  TRIGGERID
 --------------
 --------------
 CREATE TRIGGER t_kontrolli_seisundi_muutust BEFORE UPDATE OF toote_seisundi_liik_kood ON Toode
-FOR EACH ROW EXECUTE PROCEDURE f_kontrolli_seisundi_muutust();
-COMMENT ON TRIGGER t_kontrolli_seisundi_muutust ON Toode IS 'See trigger käivitatakse igakord, kui toote kirjet tahetakse muuta UPDATE statement abil. Käivitatakse funktsioon, mis kontrollib seisundi muutust.';
+FOR EACH ROW
+    WHEN ((NOT
+        (                                                                                              -- SEISUNDIDIAGRAMM
+            (OLD.toote_seisundi_liik_kood =              NEW.toote_seisundi_liik_kood    )        OR   -- Seisund ei muutu
+            (OLD.toote_seisundi_liik_kood IN (2, 3)  AND NEW.toote_seisundi_liik_kood = 4)        OR   -- Lõpeta aktiivne või mitteaktiivne toode
+            (OLD.toote_seisundi_liik_kood IN (1, 2)  AND NEW.toote_seisundi_liik_kood = 3)        OR   -- Muuda ootel või aktiivne toote mitteaktiivseks
+            (OLD.toote_seisundi_liik_kood IN (1, 3)  AND NEW.toote_seisundi_liik_kood = 2)             -- Aktiveeri ootel või mitteaktiivse toote
+        )
+        ))
+EXECUTE PROCEDURE f_kontrolli_seisundi_muutust();
+COMMENT ON TRIGGER t_kontrolli_seisundi_muutust ON Toode IS 'See trigger käivitatakse igakord, kui toote seisundit tahetakse muuta UPDATE klausli abil. Käivitatakse funktsioon, mis annab erindi välja, kui on ebakorrektne olekumuutus.';
 
 CREATE TRIGGER t_hash_password BEFORE INSERT OR UPDATE OF parool ON Isik
 FOR EACH ROW EXECUTE PROCEDURE f_hash_password();
