@@ -18,6 +18,7 @@ DROP TRIGGER IF EXISTS t_hash_password ON Isik CASCADE;
 DROP VIEW IF EXISTS Toodete_nimekiri CASCADE;
 DROP VIEW IF EXISTS Toodete_kategooriad CASCADE;
 DROP VIEW IF EXISTS Toodete_lopetamine CASCADE;
+DROP VIEW IF EXISTS Toodete_koondaruanne CASCADE;
 
 -- Tabelid DROP laused
 DROP TABLE IF EXISTS Amet CASCADE;
@@ -355,8 +356,8 @@ BEGIN
       SET toote_seisundi_liik_kood = 4
       WHERE toode_kood = p_toote_kood;
 END;
-$$ LANGUAGE 'plpgsql'
-SET search_path = public;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 COMMENT ON FUNCTION f_lopeta_toode (p_toote_kood
     Toode.toode_kood%TYPE) IS 'Selle funktsiooni abil lõpetatakse toote.
@@ -367,7 +368,7 @@ CREATE OR REPLACE FUNCTION f_kontrolli_seisundi_muutust () RETURNS trigger AS $$
 BEGIN
     RAISE EXCEPTION 'Tekkis viga seisundi muutmisel';
 END;
-$$ LANGUAGE 'plpgsql'
+$$ LANGUAGE plpgsql
 SET search_path = public;
 
 COMMENT ON FUNCTION f_kontrolli_seisundi_muutust () IS 'Kuna toote seisundi muutus toimus ebakorrektselt, väljastab see funktsion välja exceptioni.';
@@ -384,8 +385,8 @@ BEGIN
     END IF;
     RETURN NEW;
 END
-$$ LANGUAGE 'plpgsql'
-SET search_path = public;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 COMMENT ON FUNCTION f_hash_password () IS 'Selle funktsiooni abil rakendatakse registreeritud isiku paroolile soolaga krüpteerimise funktsioon. On arvestatud nii UPDATE kui ka INSERT juhtudega, on välditud topelthashimist UPDATE korral.';
 
@@ -415,7 +416,10 @@ COMMENT ON TRIGGER t_hash_password ON Isik IS 'See trigger käivitatakse igakord
 --------------
 INSERT INTO isik (isik_id, e_meil, isikukood, riik_kood, isik_seisundi_liik_kood, eesnimi, elukoht, parool, reg_aeg, synni_kp, perenimi)
 VALUES (1, 'max9599@gmail.com', '39509182223', 'EST', 1, 'Maxim', 'Tallinn', '1234', '2016-12-02 21:03:00', '1995-09-18', 'Gromov');
+INSERT INTO isik (isik_id, e_meil, isikukood, riik_kood, isik_seisundi_liik_kood, eesnimi, elukoht, parool, reg_aeg, synni_kp, perenimi)
+VALUES (2, 'jaan@jaan.com', '398788554653', 'EST', 1, 'Jaan', 'Tallinn', '4321', '2016-12-02 21:03:00', '1995-01-18', 'Peeter');
 INSERT INTO tootaja (isik_id, amet_kood, tootaja_seisundi_liik_kood) VALUES (1, 1, 1);
+INSERT INTO klient (isik_id, klient_seisundi_liik_kood) VALUES (2, 1);
 
 INSERT INTO toode (toode_kood, nimetus, registreerija_id, toote_seisundi_liik_kood, riik_kood, kirjeldus, kaal, korgus, pikkus, laius, reg_aeg, hind, min_soovitatav_vanus, max_soovitatav_vanus, pildi_url)
 VALUES ('XPK231', 'Karu', 1, 1, 'EST', 'Väga pehme karu', 0.120, 1.500, 0.800, 0.340, '2016-12-02 21:03:00', 79.9900, 2, 100, 'http://www.clipartqueen.com/image-files/teddy-bear-head.png');
